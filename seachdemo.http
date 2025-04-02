@@ -1,0 +1,6 @@
+@seachdemo_HostAddress = http://localhost:5085
+
+GET {{seachdemo_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
