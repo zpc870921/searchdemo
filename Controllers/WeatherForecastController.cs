@@ -1,4 +1,5 @@
 using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.Aggregations;
 using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.Mapping;
 using Mapster;
@@ -21,7 +22,7 @@ namespace seachdemo.Controllers
         private readonly ElasticsearchClient _elasticClient;
         private readonly CustomerSearchService _customerSearchService;
 
-        public WeatherForecastController(ILogger<WeatherForecastController> logger,ElasticsearchClient elasticClient, CustomerSearchService customerSearchService)
+        public WeatherForecastController(ILogger<WeatherForecastController> logger, ElasticsearchClient elasticClient, CustomerSearchService customerSearchService)
         {
             _logger = logger;
             this._elasticClient = elasticClient;
@@ -52,7 +53,7 @@ namespace seachdemo.Controllers
         public async Task<IActionResult> GetCustomersOptimized(SearchModel model)
         {
             var ret = await _customerSearchService.SearchCustomersWithConditionsAsync(model);
-            
+
             return Ok(new
             {
                 TotalHits = ret.Total,
@@ -97,6 +98,79 @@ namespace seachdemo.Controllers
         [HttpGet]
         public async Task<IActionResult> test()
         {
+            var ret2 = await _elasticClient.SearchAsync<Customer>(s => 
+            s.Query(q => q.MatchAll(_ => { })).Size(0)
+            .Aggregations(aggregations =>
+             aggregations.Add("agg_hobby", 
+                aggregation => aggregation.Terms(t=>t.Field(f=>f.Hobby.Suffix("keyword")).Size(10).Order(new Dictionary<Field, SortOrder> { { "_count", SortOrder.Asc } }))
+            )
+            // 订单金额聚合 - 使用字符串字段名
+            .Add("order_amounts", aggregation =>
+                // 订单金额聚合 - 避免嵌套Aggregations调用
+                 aggregation.Children(c=>c.Type("order"))
+                   .Aggregations(a=>a.Add("agg_orderamount_range",
+                   b=>b.Range(r=>r.Field("order_amount")
+                    .Ranges(f=>f.To(1000), f => f.From(1000).To(2000), f => f.From(2000))).Aggregations(a=>
+                    a.Add("agg_orderamount_stat",b =>b.Stats(st => st
+                        .Field("order_amount")
+                    )))
+                   )
+                   //.Add("agg_orderamount_stat",b =>b.Stats(st => st
+                   //     .Field("order_amount")
+                   // ))
+                   ))
+            .Add("email_domain",aggregations=>
+                aggregations.Terms(t=>t.Field(f=>f.Email).Script(s => s.Source("doc['email'].value.substring(doc['email'].value.indexOf('@') + 1)")).Size(20))
+                )
+            ));
+
+            var aggDict = new Dictionary<string, HashSet<string>>();
+            var hobbyAggs = ret2.Aggregations?.GetStringTerms("agg_hobby")!;
+            var hobbyList = new HashSet<string>();
+            foreach (var item in hobbyAggs.Buckets)
+            {
+                hobbyList.Add(item.Key.Value.ToString());
+            }
+            aggDict.Add("hobby",hobbyList);
+
+            var emailAggs = ret2.Aggregations?.GetStringTerms("email_domain")!;
+            var emailList = new HashSet<string>();
+            foreach (var item in emailAggs.Buckets)
+            {
+                emailList.Add(item.Key.Value.ToString());
+            }
+            aggDict.Add("email_domain", emailList);
+
+
+
+            //await _elasticClient.BulkAsync();
+
+
+
+            //var add6 =  await _elasticClient.IndexAsync(new Customer
+            // {
+            //     Id = "6",
+            //     Email = "66@qq.com",
+            //     Name = "test6",
+            //     Desc = "欢迎666莅临指导",
+            //     Hobby = new List<string> {"爬山","上网" },
+            //     CustomerOrder = JoinField.Root<Customer>()
+            // });
+
+            // var get6 = await _elasticClient.GetAsync<Customer>("6");
+
+            // var update6 = await _elasticClient.UpdateAsync<Customer, dynamic>("6", doc => doc.Doc(new
+            // {
+            //     email="6_1@qq.com",
+            //     customer_order = JoinField.Root<Customer>()
+            // }).DocAsUpsert());
+
+            //get6.Source.Email = "6_2@qq.com";
+            //var update62 = await _elasticClient.UpdateAsync<Customer,Customer>("6",u=>u.Doc(get6.Source));
+
+            //var delete6 = await _elasticClient.DeleteAsync<Customer>("6");
+
+
             //var ret = await _elasticClient.IndexAsync(new Customer()
             //{
             //   Id="6",
@@ -129,7 +203,7 @@ namespace seachdemo.Controllers
                         ["customer_order"] = new JoinProperty
                         {
                             EagerGlobalOrdinals = true,
-                            Relations = new Dictionary<string, Union<string,ICollection<string>>>
+                            Relations = new Dictionary<string, Union<string, ICollection<string>>>
                             {
                                 { "customer", new[] { "order" } }
                             }
