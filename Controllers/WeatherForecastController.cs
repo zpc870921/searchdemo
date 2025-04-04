@@ -1,16 +1,20 @@
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.Aggregations;
+using Elastic.Clients.Elasticsearch.Core.Search;
 using Elastic.Clients.Elasticsearch.IndexManagement;
+using Elastic.Clients.Elasticsearch.MachineLearning;
 using Elastic.Clients.Elasticsearch.Mapping;
+using Elastic.Clients.Elasticsearch.QueryDsl;
 using Mapster;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using seachdemo.Models;
+using System.Text.RegularExpressions;
 
 namespace seachdemo.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("[controller]/[action]")]
     public class WeatherForecastController : ControllerBase
     {
         private static readonly string[] Summaries = new[]
@@ -32,6 +36,8 @@ namespace seachdemo.Controllers
         [HttpPost(Name = "GetWeatherForecast")]
         public async Task<IActionResult> Post(SearchModel model)
         {
+
+
             var ret = await _customerSearchService.SearchCustomersWithConditionsAsync(model);
             // 通过mapster，将查询结果映射到CustomerDto
             var customers = ret.Documents.Adapt<List<CustomerDto>>();
@@ -70,29 +76,139 @@ namespace seachdemo.Controllers
             });
         }
 
+        [HttpGet]
+        public async Task<IActionResult> mget()
+        {
+            var customerids = new string[]{ "1", "3" };
+            
+            var docs = await _elasticClient.MultiGetAsync<CustomerDoc>(r => r.Index("customerorder").Ids(customerids));
+         
+            var ret = new List<CustomerDoc>();
+            foreach (var item in docs.Docs)
+            {
+                var doc= item.Match<CustomerDoc>(r=> { r.Source.Id = r.Id; return r.Source; },e=>null);
+                ret.Add(doc);
+            }
+            var docsDto = ret.Adapt<List<CustomerDto>>();
+
+            return Ok(docsDto);
+        }
+
         /// <summary>
         /// 使用功能评分查询
         /// </summary>
         [HttpPost("function-score")]
         public async Task<IActionResult> GetCustomersFunctionScore(SearchModel model)
         {
-            //var ret = await _customerSearchService.SearchCustomersWithFunctionScoreAsync(model);
+            var weight1Score = FunctionScore.WeightScore(2.0);
+            weight1Score.Filter = new TermQuery("hobby.keyword")
+            {
+                Value = "爬山"
+            };
+            var weight2Score = FunctionScore.WeightScore(1.0);
+            weight2Score.Filter = new TermQuery("hobby.keyword")
+            {
+                Value = "上网"
+            };
 
-            //return Ok(new
-            //{
-            //    TotalHits = ret.Total,
-            //    MaxScore = ret.MaxScore,
-            //    ElapsedMs = ret.Took,
-            //    Documents = ret.Documents,
-            //    Hits = ret.Hits.Select(h => new
-            //    {
-            //        Id = h.Id,
-            //        Score = h.Score,
-            //        Source = h.Source,
-            //        Highlights = h.Highlight
-            //    }).ToList()
-            //});
-            return Ok();
+            var searchRequest = new SearchRequest(Indices.Index("customerorder"))
+            {
+                // 设置返回大小
+                Size = 20,
+                // FunctionScore查询
+                Query = new FunctionScoreQuery
+                {
+                    // 基础查询 - 可以是任何查询类型
+                    Query = new BoolQuery
+                    {
+                        Must = new List<Query>
+                                {
+                                    new MatchQuery("desc")
+                                    {
+                                         Query=model.DescContent
+                                    }
+                                }
+                    },
+                    // 评分函数列表
+                    Functions = new List<FunctionScore>
+                                {   weight1Score,    
+                                    weight2Score,
+                                    //FunctionScore.FieldValueFactor(new FieldValueFactorScoreFunction()
+                                    //{
+                                    //     Field="_id",
+                                    //     Factor = 1.0,
+                                    //}) ,
+                                    //FunctionScore.Gauss(new NumericDecayFunction()
+                                    //{
+                                    //     Field="_id",
+                                    //     MultiValueMode= MultiValueMode.Avg,
+                                    //     Placement = new DecayPlacement<double, double>()
+                                    //     {  Origin=0,
+                                    //        Scale =0.5, // 30天为比例尺
+                                    //        Offset =0, // 无偏移
+                                    //        Decay = 0.5 // 30天后的评分降为最高分的50%
+                                    //     }
+                                    //})
+                                },
+
+                    // 评分模式 - 如何组合多个函数的分数
+                    ScoreMode = FunctionScoreMode.Sum, // 将所有匹配的函数分数相加
+                    // 提升模式 - 如何将函数分数与查询分数结合
+                    BoostMode = FunctionBoostMode.Multiply, // 将函数分数与查询分数相乘
+                    // 全局提升因子
+                    Boost = 1.5f
+                },
+                // 高亮配置
+                Highlight = new Highlight
+                {
+                    Fields = new Dictionary<Field, HighlightField>
+                    {
+                        { "desc", new HighlightField() },
+                        { "hobby", new HighlightField() }
+                    },
+                    PreTags = new[] { "<em>" },
+                    PostTags = new[] { "</em>" }
+                }
+            };
+
+            // 正确执行查询
+            var searchResponse = await _elasticClient.SearchAsync<CustomerDoc>(searchRequest);
+
+            // 处理搜索结果
+            var results = new List<CustomerDto>();
+            if (searchResponse.IsValidResponse)
+            {
+                foreach (var hit in searchResponse.Hits)
+                {
+                    var customer = hit.Source.Adapt<CustomerDto>();
+                    customer.Id = hit.Id;
+                    // 处理高亮
+                    if (hit.Highlight != null)
+                    {
+                        if (hit.Highlight.ContainsKey("desc") && hit.Highlight["desc"].Any())
+                        {
+                            customer.Desc = string.Join(" ", hit.Highlight["desc"]);
+                        }
+                        if (hit.Highlight.ContainsKey("hobby") && hit.Highlight["hobby"].Any())
+                        {
+                            customer.Hobby =new List<string> { string.Join(",", hit.Highlight["hobby"]) };
+                        }
+                    }
+                    // 处理inner_hits
+                    if (hit.InnerHits != null && hit.InnerHits.ContainsKey("order"))
+                    {
+                        var orderHits = hit.InnerHits["order"].Hits.Hits;
+                        // 处理订单数据...
+                    }
+                    results.Add(customer);
+                }
+            }
+            else
+            {
+                // 处理错误
+                Console.WriteLine($"查询失败: {searchResponse.DebugInformation}");
+            }
+            return Ok(results);
         }
 
         [HttpGet]
