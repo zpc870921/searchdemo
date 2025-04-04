@@ -98,7 +98,7 @@ namespace seachdemo.Controllers
         [HttpGet]
         public async Task<IActionResult> test()
         {
-            var ret2 = await _elasticClient.SearchAsync<Customer>(s => 
+            var ret2 = await _elasticClient.SearchAsync<CustomerDoc>(s => 
             s.Query(q => q.MatchAll(_ => { })).Size(0)
             .Aggregations(aggregations =>
              aggregations.Add("agg_hobby", 

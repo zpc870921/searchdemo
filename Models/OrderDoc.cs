@@ -1,11 +1,25 @@
 ﻿using Elastic.Clients.Elasticsearch;
+using seachdemo.Data;
 using System.Text.Json.Serialization;
 
 namespace seachdemo.Models
 {
     // 订单模型
-    public class Order
+    public class OrderDoc
     {
+        public OrderDoc()
+        {
+            
+        }
+        public OrderDoc(Biz_Order order)
+        {
+            this.Id = "oid_" + order.OrderId;
+            this.CustomerId=order.CustomerId;
+            this.OrderId = order.OrderId;
+            this.OrderAmount = order.OrderAmount;
+            this.OrderSerial = order.OrderSerial;
+            this.OrderTime = DateTime.Now;
+        }
         //[JsonPropertyName("_id")]
         public string Id { get; set; }
 
@@ -27,5 +41,6 @@ namespace seachdemo.Models
         // 父子关系字段
         //[JsonPropertyName("customer_order")]
         public JoinField CustomerOrder { get; set; }
+
     }
 }

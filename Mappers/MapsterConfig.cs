@@ -8,12 +8,12 @@ namespace seachdemo.Mappers
         public static void Configure()
         {
             // 配置 Customer -> CustomerDto 映射
-            TypeAdapterConfig<Customer, CustomerDto>
+            TypeAdapterConfig<CustomerDoc, CustomerDto>
                 .NewConfig()
              ;
 
             // 配置 Order -> OrderDto 映射
-            TypeAdapterConfig<Order, OrderDto>
+            TypeAdapterConfig<OrderDoc, OrderDto>
                 .NewConfig();
 
             // 配置 CustomerWithOrders -> CustomerWithOrdersDto 映射

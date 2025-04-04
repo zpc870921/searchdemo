@@ -17,12 +17,12 @@ namespace seachdemo
 
             var settings = new ElasticsearchClientSettings(new Uri("http://localhost:9200"))
                             .DefaultIndex("customerorder")
-                            .DefaultMappingFor<Customer>(i => i
+                            .DefaultMappingFor<CustomerDoc>(i => i
                                 .IndexName("customerorder")
                                 .IdProperty(p => p.Id)
                                 .RelationName("customer")
                             )
-                             .DefaultMappingFor<Order>(i => i
+                             .DefaultMappingFor<OrderDoc>(i => i
                                 .IndexName("customerorder")
                                 .RelationName("order")
                                 .IdProperty(p => p.Id)

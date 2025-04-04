@@ -14,9 +14,9 @@ namespace seachdemo.Models
         public int Size { get; set; } = 10;
     }
 
-    public class CustomerWithOrders : Customer
+    public class CustomerWithOrders : CustomerDoc
     {
-        public List<Order> Orders { get; set; } = new List<Order>();
+        public List<OrderDoc> Orders { get; set; } = new List<OrderDoc>();
     }
 
     public class CustomerSearchService
@@ -29,7 +29,7 @@ namespace seachdemo.Models
         }
 
 
-        public async Task<SearchResponse<Customer>> SearchCustomersWithQueryContainer2Async(SearchModel model)
+        public async Task<SearchResponse<CustomerDoc>> SearchCustomersWithQueryContainer2Async(SearchModel model)
         {
             // 创建 QueryContainer 集合
             var queries = new List<Query>();
@@ -110,7 +110,7 @@ namespace seachdemo.Models
             };
 
             // 执行查询
-            var response = await _client.SearchAsync<Customer>(request);
+            var response = await _client.SearchAsync<CustomerDoc>(request);
 
             // 处理 ID 映射
             foreach (var hit in response.Hits)
@@ -124,7 +124,7 @@ namespace seachdemo.Models
             return response;
         }
 
-        public async Task<SearchResponse<Customer>> SearchCustomersWithFunctionalQueryContainer3Async(SearchModel model)
+        public async Task<SearchResponse<CustomerDoc>> SearchCustomersWithFunctionalQueryContainer3Async(SearchModel model)
         {
             // 使用函数式 API 构建 QueryContainer
             Query finalQuery = null;
@@ -201,7 +201,7 @@ namespace seachdemo.Models
             };
 
             // 执行查询
-            var response = await _client.SearchAsync<Customer>(request);
+            var response = await _client.SearchAsync<CustomerDoc>(request);
 
             // 处理 ID 映射
             foreach (var hit in response.Hits)
@@ -289,7 +289,7 @@ namespace seachdemo.Models
         //    });
         //}
 
-        public async Task<SearchResponse<Customer>> SearchCustomersWithConditionsAsync(SearchModel model)
+        public async Task<SearchResponse<CustomerDoc>> SearchCustomersWithConditionsAsync(SearchModel model)
         {
             // 创建查询对象 - 使用 must 和 filter 分离评分和非评分条件
             var boolQuery = new BoolQuery()
@@ -299,12 +299,12 @@ namespace seachdemo.Models
             };
 
             // 添加必须条件：文档类型为customer（不影响评分，移到filter中）
-            boolQuery.Filter.Add(new TermQuery(Infer.Field<Customer>(c=>c.CustomerOrder)) { Value = "customer" });
+            boolQuery.Filter.Add(new TermQuery(Infer.Field<CustomerDoc>(c=>c.CustomerOrder)) { Value = "customer" });
 
             // 添加描述内容匹配条件（这是相关性查询，保留在must中）
             if (!string.IsNullOrEmpty(model.DescContent))
             {
-                boolQuery.Must.Add(new MatchQuery(Infer.Field<Customer>(c=>c.Desc)) { Query = model.DescContent });
+                boolQuery.Must.Add(new MatchQuery(Infer.Field<CustomerDoc>(c=>c.Desc)) { Query = model.DescContent });
             }
 
             // 添加爱好匹配条件（取决于使用场景）
@@ -314,7 +314,7 @@ namespace seachdemo.Models
             {
                 var hobbiesQuery = new TermsQuery() 
                 { 
-                    Field = Infer.Field<Customer>(c=>c.Hobby), 
+                    Field = Infer.Field<CustomerDoc>(c=>c.Hobby), 
                     Terms = new TermsQueryField(model.Hobbies.Select(h => (FieldValue)h).ToList()) 
                 };
                 
@@ -328,7 +328,7 @@ namespace seachdemo.Models
             // 添加订单金额范围条件（这是过滤条件，不影响评分）
             if (model.MinOrderAmount.HasValue || model.MaxOrderAmount.HasValue)
             {
-                var rangeQuery = new NumberRangeQuery( Infer.Field<Order>(o=>o.OrderAmount));
+                var rangeQuery = new NumberRangeQuery( Infer.Field<OrderDoc>(o=>o.OrderAmount));
 
                 if (model.MinOrderAmount.HasValue)
                     rangeQuery.Gte = model.MinOrderAmount.Value;
@@ -346,7 +346,7 @@ namespace seachdemo.Models
                         Size = 5,  // 增加一点，便于获取更多相关订单
                         Sort = new List<SortOptions>
                         {
-                            SortOptions.Field(Infer.Field<Order>(o=>o.OrderAmount), new FieldSort(){ Order = SortOrder.Desc })
+                            SortOptions.Field(Infer.Field<OrderDoc>(o=>o.OrderAmount), new FieldSort(){ Order = SortOrder.Desc })
                         }
                     }
                 };
@@ -362,7 +362,7 @@ namespace seachdemo.Models
             }
 
             // 构建查询请求
-            var request = new SearchRequest(Infer.Index<Customer>())
+            var request = new SearchRequest(Infer.Index<CustomerDoc>())
             {
                 From = model.From,
                 Size = model.Size,
@@ -376,9 +376,9 @@ namespace seachdemo.Models
                 {
                     Fields = new Dictionary<Field, HighlightField>
                     {
-                        { Infer.Field<Customer>(c=>c.Desc), new HighlightField(){
+                        { Infer.Field<CustomerDoc>(c=>c.Desc), new HighlightField(){
                          Type= HighlighterType.Unified, FragmentSize=150, NumberOfFragments=2 } },
-                        { Infer.Field<Customer>(c=>c.Hobby), new HighlightField() }
+                        { Infer.Field<CustomerDoc>(c=>c.Hobby), new HighlightField() }
                     },
                     PreTags = new[] { "<em>" },
                     PostTags = new[] { "</em>" }
@@ -386,7 +386,7 @@ namespace seachdemo.Models
             };
 
             // 执行查询
-            var response = await _client.SearchAsync<Customer>(request);
+            var response = await _client.SearchAsync<CustomerDoc>(request);
             
             // 确保将 ES 的 _id 映射到 Customer 对象的 Id 属性
             foreach (var hit in response.Hits)
@@ -433,7 +433,7 @@ namespace seachdemo.Models
                                 try
                                 {
                                     // 手动构建 Order 对象
-                                    var order = new Order
+                                    var order = new OrderDoc
                                     {
                                         Id = orderHit.Id, // 设置为 ES 文档的 _id
                                         CustomerId = GetPropertyValue<string>(orderData.Value, "customer_id"),
