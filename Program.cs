@@ -1,8 +1,12 @@
+using Mapster;
+using Mapster.Utils;
 using Microsoft.EntityFrameworkCore;
 using seachdemo.Data;
 using seachdemo.Mappers;
 using seachdemo.Models;
 using seachdemo.Services;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Reflection;
 
 namespace seachdemo
 {
@@ -12,9 +16,9 @@ namespace seachdemo
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // 配置 Mapster
-            MapsterConfig.Configure();
-
+           
+            builder.Services.ConfigureMapster();
+            builder.Services.AddMapster();
             // Add services to the container.
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

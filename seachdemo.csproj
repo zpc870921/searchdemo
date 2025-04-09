@@ -8,7 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="Elastic.Clients.Elasticsearch" Version="8.17.3" />
-    <PackageReference Include="Mapster" Version="7.4.0" />
+    <PackageReference Include="Mapster" Version="7.4.2-pre02" />
+    <PackageReference Include="Mapster.DependencyInjection" Version="1.0.3-pre02" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
 
 	  <PackageReference Include="DotNetCore.CAP.Dashboard" Version="8.3.3" />
