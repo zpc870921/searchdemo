@@ -19,6 +19,7 @@ namespace seachdemo
            
             builder.Services.ConfigureMapster();
             builder.Services.AddMapster();
+            builder.Services.AddMemoryCache();
             // Add services to the container.
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -63,8 +64,8 @@ namespace seachdemo
             }
 
             app.UseAuthorization();
-
-
+            //app.UseMiddleware<MyMiddleware>();
+            //app.UseResponseCaching();
             app.MapControllers();
 
             app.Run();

@@ -9,5 +9,7 @@
         public string Desc { get; set; }
         public DateTime C_time { get; set; }
         public DateTime Update_time { get; set; }
+
+        public virtual ICollection<Biz_Order2> Biz_Orders { get; set; } = new List<Biz_Order2>();
     }
 }
